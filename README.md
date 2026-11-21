@@ -11,6 +11,11 @@ A full-screen 24-hour flip clock (HH:MM) for the ESP32 "Cheap Yellow Display" (E
 
 Inspired by [ThomDyson/CYDFlipClock](https://github.com/ThomDyson/CYDFlipClock).
 
+## Hardware
+
+- An ESP32-2432S028 "CYD" board, 2.8" 320×240. The default build is for the two-USB (USB-C + micro-USB) version with the ST7789 display. See the tuning knobs below for the micro-USB-only version.
+- A USB cable for the first flash. Later updates can go over WiFi.
+
 ## Build & flash
 
 Needs [PlatformIO](https://platformio.org) (`uv tool install platformio` or `pip install platformio`).
@@ -37,7 +42,7 @@ If nobody configures it within 5 minutes, it reboots and tries the saved WiFi ag
 | Night dimming hours and level | `NIGHT_START`, `NIGHT_END`, `NIGHT_LEVEL` |
 | Touch calibration (taps land in the wrong place) | `TS_X0`, `TS_X1`, `TS_Y0`, `TS_Y1` (raw values are printed on serial) |
 | Flip speed | `STEPS`, `FRAME_MS` |
-| Colours | `CARD`, `FG`, `COLON`, `BG` |
+| Colours | `COLOURS` (the tap cycle), `CARD`, `COLON`, `BG` |
 | Inverted or negative display | change `TFT_INVERSION_OFF` to `TFT_INVERSION_ON` in `platformio.ini` |
 | Micro-USB-only board (ILI9341) | change `ST7789_DRIVER` to `ILI9341_2_DRIVER` in `platformio.ini` |
 
@@ -48,3 +53,7 @@ If nobody configures it within 5 minutes, it reboots and tries the saved WiFi ag
 ```sh
 python tools/gen_digits.py BebasNeue-Regular.ttf include/digits.h   # needs Pillow
 ```
+
+## Licence
+
+[MIT](LICENSE). The Bebas Neue font is under the [SIL Open Font License](fonts/BebasNeue-OFL.txt).
