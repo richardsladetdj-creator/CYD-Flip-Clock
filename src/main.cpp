@@ -22,6 +22,10 @@ const uint32_t RESET_HOLD_MS = 5000;         // long-press to forget WiFi
 const int CW = DIG_W, CH = DIG_H, HALF = CH / 2, CARD_Y = 20, RADIUS = 6;
 const int CARD_X[4] = {4, 80, 170, 246};
 const uint16_t BG = TFT_BLACK, CARD = 0x2104, FG = 0xEF7D, COLON = 0x8410;
+// tap cycles digit colour: default, blue, green, red, yellow
+const uint16_t COLOURS[] = {FG, 0x353F, 0x07E0, 0xF8A2, 0xFFE0};
+const int N_COLOURS = sizeof COLOURS / sizeof *COLOURS;
+int colour = 0;
 const int SHADES = 8; // darkness levels for the moving flap
 
 TFT_eSPI tft;
@@ -51,7 +55,7 @@ void msg(const char *a, const char *b = "", const char *c = "") {
 void initTables() {
   for (int s = 0; s < SHADES; s++)
     for (int a = 0; a < 16; a++) {
-      uint16_t c = tft.alphaBlend(a * 17, FG, CARD);
+      uint16_t c = tft.alphaBlend(a * 17, COLOURS[colour], CARD);
       c = tft.alphaBlend(255 - s * 160 / (SHADES - 1), c, BG); // up to ~63% darker
       pal[s][a] = (c >> 8) | (c << 8);
     }
@@ -115,10 +119,22 @@ void showTime(const int nd[4]) {
 }
 
 void checkTouch() {
-  static uint32_t since = 0;
-  if (!ts.touched()) { since = 0; return; }
-  if (!since) since = millis();
-  else if (millis() - since > RESET_HOLD_MS) {
+  static uint32_t since = 0, seen = 0; // touch start, last time still touched
+  uint32_t now = millis();
+  if (!ts.touched()) {
+    if (since && now - seen > 100) { // released (100ms debounce: pressure readings flicker)
+      if (seen - since < 1000) {     // short tap: next colour, redraw everything
+        colour = (colour + 1) % N_COLOURS;
+        initTables();
+        lastMin = -1;
+      }
+      since = 0;
+    }
+    return;
+  }
+  seen = now;
+  if (!since) since = now;
+  else if (now - since > RESET_HOLD_MS) {
     msg("Resetting WiFi", "", "release the screen");
     wm.resetSettings();
     delay(1000);
@@ -176,7 +192,7 @@ void loop() {
   }
   if (t.tm_sec != lastSec) { // colon blinks: on for even seconds, off for odd
     lastSec = t.tm_sec;
-    uint16_t c = (t.tm_sec & 1) ? BG : COLON;
+    uint16_t c = (t.tm_sec & 1) ? BG : colour ? COLOURS[colour] : COLON;
     tft.fillRoundRect(155, 90, 10, 10, 2, c);
     tft.fillRoundRect(155, 140, 10, 10, 2, c);
   }

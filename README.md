@@ -5,6 +5,7 @@ A full-screen 24-hour flip clock (HH:MM) for the ESP32 "Cheap Yellow Display" (E
 - Gets the time over NTP. UK time is the default, with automatic GMT/BST changes.
 - WiFi is set up from your phone through a captive portal, so no credentials are kept in the repo.
 - Firmware updates can be sent over WiFi (ArduinoOTA, password protected).
+- Tapping the screen cycles the digit colour: default, blue, green, red, yellow, then back to default.
 - Holding the screen for 5 s clears the saved WiFi and opens the setup portal again.
 - The backlight dims at night (23:00 to 07:00).
 
