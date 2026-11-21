@@ -36,6 +36,7 @@ WiFiManager wm;
 
 int shown[4] = {-1, -1, -1, -1};
 int lastMin = -1; // -1 forces a full redraw
+int lastSec = -1;
 
 void msg(const char *a, const char *b = "", const char *c = "") {
   tft.fillScreen(BG);
@@ -101,8 +102,6 @@ void flipFrame(int c, int od, int nd, int phase, int i) {
 void showTime(const int nd[4]) {
   if (lastMin < 0) { // full redraw
     tft.fillScreen(BG);
-    tft.fillRoundRect(155, 90, 10, 10, 2, COLON);
-    tft.fillRoundRect(155, 140, 10, 10, 2, COLON);
     for (int c = 0; c < 4; c++) drawCard(c, shown[c] = nd[c]);
     return;
   }
@@ -165,13 +164,21 @@ void loop() {
   ArduinoOTA.handle();
   checkTouch();
   struct tm t;
-  if (getLocalTime(&t, 0) && t.tm_min != lastMin) {
+  if (!getLocalTime(&t, 0)) return;
+  if (t.tm_min != lastMin) {
     bool night = NIGHT_START > NIGHT_END ? (t.tm_hour >= NIGHT_START || t.tm_hour < NIGHT_END)
                                          : (t.tm_hour >= NIGHT_START && t.tm_hour < NIGHT_END);
     analogWrite(TFT_BL, night ? NIGHT_LEVEL : DAY_LEVEL);
     int nd[4] = {t.tm_hour / 10, t.tm_hour % 10, t.tm_min / 10, t.tm_min % 10};
     showTime(nd);
     lastMin = t.tm_min;
+    lastSec = -1; // full redraw wipes the colon
+  }
+  if (t.tm_sec != lastSec) { // colon blinks: on for even seconds, off for odd
+    lastSec = t.tm_sec;
+    uint16_t c = (t.tm_sec & 1) ? BG : COLON;
+    tft.fillRoundRect(155, 90, 10, 10, 2, c);
+    tft.fillRoundRect(155, 140, 10, 10, 2, c);
   }
   delay(20);
 }
