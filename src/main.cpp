@@ -6,6 +6,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
+#include <Preferences.h>
 #include <time.h>
 #include "digits.h"
 
@@ -14,9 +15,11 @@ static_assert(sizeof(OTA_PASS) > 8, "export FLIPCLOCK_OTA_PASS (8+ chars) before
 // ---- tuning knobs ----
 const char *TZ_UK = "GMT0BST,M3.5.0/1,M10.5.0";
 const int NIGHT_START = 23, NIGHT_END = 7;   // dim from 23:00 to 06:59
-const int DAY_LEVEL = 255, NIGHT_LEVEL = 20; // backlight PWM 0-255
+const int NIGHT_LEVEL = 20, MIN_BRIGHT = 10;  // backlight PWM 0-255; daytime level is set in Settings
 const int STEPS = 8, FRAME_MS = 12;          // flip animation per half
-const uint32_t RESET_HOLD_MS = 5000;         // long-press to forget WiFi
+const uint32_t HOLD_MS = 1500;               // long-press opens Settings
+const uint32_t SETTINGS_IDLE_MS = 30000;     // Settings closes itself after this
+const int TS_X0 = 200, TS_X1 = 3700, TS_Y0 = 240, TS_Y1 = 3800; // touch calibration (raw -> screen)
 
 // ---- layout (320x240 landscape) ----
 const int CW = DIG_W, CH = DIG_H, HALF = CH / 2, CARD_Y = 20, RADIUS = 6;
@@ -37,6 +40,8 @@ uint8_t inset[CH];        // rounded-corner inset per row
 SPIClass touchSPI(VSPI);
 XPT2046_Touchscreen ts(33, 36);
 WiFiManager wm;
+Preferences prefs;
+int bright = 255; // daytime backlight, persisted
 
 int shown[4] = {-1, -1, -1, -1};
 int lastMin = -1; // -1 forces a full redraw
@@ -118,6 +123,95 @@ void showTime(const int nd[4]) {
   for (int c = 0; c < 4; c++) shown[c] = nd[c];
 }
 
+// ---- settings screen ----
+const uint16_t S_BG = 0x0841, S_ROW = 0x2104, S_LINE = 0x31A6, S_ACC = 0x2C5F, S_TXT = TFT_WHITE, S_SUB = 0x9CF3;
+const int SL_X0 = 30, SL_X1 = 290, SL_Y = 181; // brightness slider track
+
+bool touchAt(int &x, int &y) {
+  if (!ts.touched()) return false;
+  TS_Point p = ts.getPoint();
+  x = constrain(map(p.x, TS_X0, TS_X1, 0, 319), 0, 319);
+  y = constrain(map(p.y, TS_Y0, TS_Y1, 0, 239), 0, 239);
+  Serial.printf("touch raw %d,%d -> %d,%d\n", p.x, p.y, x, y); // for calibrating TS_*
+  return true;
+}
+
+void drawSlider() {
+  int kx = map(bright, MIN_BRIGHT, 255, SL_X0, SL_X1);
+  tft.fillRect(18, SL_Y - 12, 284, 25, S_ROW);
+  tft.fillRoundRect(SL_X0, SL_Y - 3, SL_X1 - SL_X0, 6, 3, S_LINE);
+  tft.fillRoundRect(SL_X0, SL_Y - 3, kx - SL_X0 + 3, 6, 3, S_ACC);
+  tft.fillSmoothCircle(kx, SL_Y, 10, S_TXT, S_ROW);
+  char pct[8];
+  snprintf(pct, sizeof pct, "%d%%", bright * 100 / 255);
+  tft.setTextDatum(MR_DATUM);
+  tft.setTextColor(S_SUB, S_ROW);
+  tft.setTextPadding(70);
+  tft.drawString(pct, 296, 149, 4);
+  tft.setTextPadding(0);
+}
+
+void drawSettings() {
+  tft.fillScreen(S_BG);
+  tft.setTextColor(S_TXT, S_BG);
+  tft.setTextDatum(ML_DATUM);
+  tft.drawString("Settings", 16, 23, 4);
+  tft.fillSmoothRoundRect(240, 9, 68, 28, 14, S_ACC, S_BG);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(S_TXT, S_ACC);
+  tft.drawString("Done", 274, 23, 2);
+  tft.drawFastHLine(0, 46, 320, S_LINE);
+
+  tft.fillSmoothRoundRect(12, 56, 296, 60, 10, S_ROW, S_BG); // Wi-Fi row
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(S_TXT, S_ROW);
+  tft.drawString("Wi-Fi", 24, 63, 4);
+  tft.setTextColor(S_SUB, S_ROW);
+  tft.drawString(WiFi.SSID().c_str(), 24, 93, 2);
+  tft.setTextDatum(MR_DATUM);
+  tft.setTextColor(S_ACC, S_ROW);
+  tft.drawString("Change  >", 296, 86, 2);
+
+  tft.fillSmoothRoundRect(12, 126, 296, 80, 10, S_ROW, S_BG); // brightness row
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(S_TXT, S_ROW);
+  tft.drawString("Brightness", 24, 136, 4);
+  drawSlider();
+
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(S_SUB, S_BG);
+  tft.drawString(("flipclock.local  -  " + WiFi.localIP().toString()).c_str(), 160, 224, 2);
+}
+
+void settings() {
+  drawSettings();
+  for (uint32_t up = millis(); millis() - up < 150;) // wait for the long-press finger to lift
+    if (ts.touched()) up = millis();
+  int saved = bright;
+  bool was = false;
+  for (uint32_t idle = millis(); millis() - idle < SETTINGS_IDLE_MS; delay(15)) {
+    ArduinoOTA.handle();
+    int x, y;
+    bool down = touchAt(x, y);
+    if (down) {
+      idle = millis();
+      if (y >= 150 && y <= 215) { // slider: tap or drag
+        int b = map(constrain(x, SL_X0, SL_X1), SL_X0, SL_X1, MIN_BRIGHT, 255);
+        if (b != bright) { bright = b; analogWrite(TFT_BL, bright); drawSlider(); }
+      } else if (!was && x >= 228 && y <= 46) break; // Done
+      else if (!was && y >= 56 && y <= 116) {        // Change Wi-Fi: portal, old WiFi kept until replaced
+        if (bright != saved) prefs.putUChar("bright", bright);
+        wm.setConfigPortalTimeout(300);
+        wm.startConfigPortal("FlipClock-Setup");
+        ESP.restart();
+      }
+    }
+    was = down;
+  }
+  if (bright != saved) prefs.putUChar("bright", bright);
+  lastMin = -1; // back to the clock: full redraw, backlight re-evaluated
+}
+
 void checkTouch() {
   static uint32_t since = 0, seen = 0; // touch start, last time still touched
   uint32_t now = millis();
@@ -134,11 +228,9 @@ void checkTouch() {
   }
   seen = now;
   if (!since) since = now;
-  else if (now - since > RESET_HOLD_MS) {
-    msg("Resetting WiFi", "", "release the screen");
-    wm.resetSettings();
-    delay(1000);
-    ESP.restart();
+  else if (now - since > HOLD_MS) {
+    settings();
+    since = 0;
   }
 }
 
@@ -146,25 +238,29 @@ void setup() {
   Serial.begin(115200);
   tft.init();
   tft.setRotation(1);
-  analogWrite(TFT_BL, DAY_LEVEL);
+  prefs.begin("clock");
+  bright = prefs.getUChar("bright", 255);
+  analogWrite(TFT_BL, bright);
   initTables();
   spr.setColorDepth(16);
   buf = (uint16_t *)spr.createSprite(CW, CH);
 
   touchSPI.begin(25, 39, 32, 33);
   ts.begin(touchSPI);
+  ts.setRotation(1);
 
   msg("Connecting WiFi...");
   wm.setHostname("flipclock");
   wm.setConfigPortalTimeout(300); // no-one configured it: reboot and retry saved WiFi
-  wm.setAPCallback([](WiFiManager *) { msg("Join WiFi network", "FlipClock-Setup", "then open http://192.168.4.1"); });
+  wm.setAPCallback([](WiFiManager *) { msg("Join WiFi network", "FlipClock-Setup", "open http://192.168.4.1 (closes in 5 min)"); });
   if (!wm.autoConnect("FlipClock-Setup")) ESP.restart();
 
+  WiFi.setSleep(false); // modem sleep makes OTA uploads drop out
   configTzTime(TZ_UK, "pool.ntp.org", "time.google.com");
 
   ArduinoOTA.setHostname("flipclock");
   ArduinoOTA.setPassword(OTA_PASS);
-  ArduinoOTA.onStart([] { analogWrite(TFT_BL, DAY_LEVEL); msg("Updating..."); });
+  ArduinoOTA.onStart([] { analogWrite(TFT_BL, bright); msg("Updating..."); });
   ArduinoOTA.onProgress([](unsigned p, unsigned t) {
     char s[8];
     snprintf(s, sizeof s, "%u%%", p * 100 / t);
@@ -184,7 +280,7 @@ void loop() {
   if (t.tm_min != lastMin) {
     bool night = NIGHT_START > NIGHT_END ? (t.tm_hour >= NIGHT_START || t.tm_hour < NIGHT_END)
                                          : (t.tm_hour >= NIGHT_START && t.tm_hour < NIGHT_END);
-    analogWrite(TFT_BL, night ? NIGHT_LEVEL : DAY_LEVEL);
+    analogWrite(TFT_BL, night ? min(NIGHT_LEVEL, bright) : bright);
     int nd[4] = {t.tm_hour / 10, t.tm_hour % 10, t.tm_min / 10, t.tm_min % 10};
     showTime(nd);
     lastMin = t.tm_min;
