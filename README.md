@@ -2,6 +2,7 @@
 
 A 24-hour HH:MM:SS flip clock with a weather bar, for the ESP32 "Cheap Yellow Display" (ESP32-2432S028, 2.8").
 
+- The screen has a weather bar on top (320×80) and six tall mechanical-style flip cards below (HH:MM:SS, 38×120 cards with ~90px condensed numerals, a centre hinge and shading).
 - Seconds flip every second; minutes and hours flip only when they change.
 - The weather bar shows current temperature, conditions and an icon from [Open-Meteo](https://open-meteo.com) (free, no API key), refreshed every 15 minutes.
 - Gets the time over NTP. UK time is the default, with automatic GMT/BST changes.
@@ -12,6 +13,13 @@ A 24-hour HH:MM:SS flip clock with a weather bar, for the ESP32 "Cheap Yellow Di
 - The backlight dims at night (23:00 to 07:00).
 
 Inspired by [ThomDyson/CYDFlipClock](https://github.com/ThomDyson/CYDFlipClock).
+
+## Using it
+
+| Action | Result |
+|---|---|
+| Tap | Cycle digit colour |
+| Hold 1.5 s | Settings: Wi-Fi & location, brightness slider, Done |
 
 ## Hardware
 
@@ -41,11 +49,12 @@ If nobody configures it within 5 minutes, it reboots and tries the saved WiFi ag
 | What | Where |
 |---|---|
 | Timezone (POSIX TZ string) | `TZ_UK` in `src/main.cpp` |
+| Default weather town | `DEFAULT_TOWN` |
 | Night dimming hours and level | `NIGHT_START`, `NIGHT_END`, `NIGHT_LEVEL` |
 | Touch calibration (taps land in the wrong place) | `TS_X0`, `TS_X1`, `TS_Y0`, `TS_Y1` (raw values are printed on serial) |
 | Flip speed | `STEPS`, `FRAME_MS` |
 | Weather refresh | `WEATHER_MS` |
-| Digit size | `MAX_W`, `MAX_H`, `SY` in `tools/gen_digits.py`, then regenerate |
+| Digit and card size | `W`, `H`, `MAX_W`, `MAX_H`, `SY` in `tools/gen_digits.py`, then regenerate. Adjust `CARD_Y` in `src/main.cpp` if `H` changes. |
 | Colours | `COLOURS` (the tap cycle), `TOP`, `BOT`, `HDR`, ... |
 | Inverted or negative display | change `TFT_INVERSION_OFF` to `TFT_INVERSION_ON` in `platformio.ini` |
 | Micro-USB-only board (ILI9341) | change `ST7789_DRIVER` to `ILI9341_2_DRIVER` in `platformio.ini` |
