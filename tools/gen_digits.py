@@ -6,9 +6,9 @@ usage: python gen_digits.py BebasNeue-Regular.ttf ../include/digits.h   (needs P
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 38, 94           # card size, must match layout in main.cpp
-MAX_W, MAX_H = 28, 66   # glyph box inside the card (~70% of card height)
-SY = 1.15               # vertical stretch for a taller retro look (1.0 = none)
+W, H = 38, 120          # card size, must match layout in main.cpp
+MAX_W, MAX_H = 28, 90   # glyph box inside the card (~75% of card height)
+SY = 1.55               # vertical stretch for a taller retro look (1.0 = none)
 
 font_path, out_path = sys.argv[1], sys.argv[2]
 

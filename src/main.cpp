@@ -37,7 +37,7 @@ const int N_COLOURS = sizeof COLOURS / sizeof *COLOURS;
 int colour = 0;
 
 // ---- layout (320x240 landscape): header 0-80, clock below ----
-const int CW = DIG_W, CH = DIG_H, HALF = CH / 2, CARD_Y = 121, RADIUS = 4;
+const int CW = DIG_W, CH = DIG_H, HALF = CH / 2, CARD_Y = 98,  RADIUS = 4;
 const int CARD_X[6] = {13, 54, 117, 158, 221, 262};
 const int SHADES = 6; // darkness levels for the moving flap
 
@@ -477,7 +477,7 @@ void loop() {
     drawHeader();
     wDirty = false;
     for (int x : {104, 208})
-      for (int y : {151, 182}) tft.fillSmoothCircle(x, y, 3, COLON, BG);
+      for (int y : {CARD_Y + HALF - 16, CARD_Y + HALF + 16}) tft.fillSmoothCircle(x, y, 3, COLON, BG);
     for (int c = 0; c < 6; c++) drawCard(c, shown[c] = nd[c]);
     lastSec = t.tm_sec;
     lastMin = -1;
