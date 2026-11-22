@@ -15,6 +15,7 @@ static_assert(sizeof(OTA_PASS) > 8, "export FLIPCLOCK_OTA_PASS (8+ chars) before
 
 // ---- tuning knobs ----
 const char *TZ_UK = "GMT0BST,M3.5.0/1,M10.5.0";
+const char *DEFAULT_TOWN = "Bournemouth"; // weather location until one is set in the portal
 const int NIGHT_START = 23, NIGHT_END = 7;   // dim from 23:00 to 06:59
 const int NIGHT_LEVEL = 20, MIN_BRIGHT = 10; // backlight PWM 0-255; daytime level is set in Settings
 const int STEPS = 5, FRAME_MS = 10;          // flip animation per half (must stay well under 1s)
@@ -49,7 +50,7 @@ uint8_t inset[CH];           // rounded-corner inset per row
 SPIClass touchSPI(VSPI);
 XPT2046_Touchscreen ts(33, 36);
 WiFiManager wm;
-WiFiManagerParameter townParam("town", "Town for weather (e.g. Manchester)", "London", 40);
+WiFiManagerParameter townParam("town", "Town for weather (e.g. Manchester)", DEFAULT_TOWN, 40);
 Preferences prefs;
 int bright = 255; // daytime backlight, persisted
 
@@ -182,7 +183,7 @@ void setPlace(const String &p) {
 }
 
 void weatherTask(void *) {
-  String town = prefs.getString("town", "London");
+  String town = prefs.getString("town", DEFAULT_TOWN);
   while (isnan(lat) || town != prefs.getString("geoTown", "")) { // geocode once per town change
     String r = httpGet("http://geocoding-api.open-meteo.com/v1/search?count=1&name=" + urlEncode(town));
     if (r.length()) {
@@ -349,7 +350,7 @@ void drawSettings() {
   tft.setTextColor(S_TXT, S_ROW);
   tft.drawString("Wi-Fi & location", 24, 63, 4);
   tft.setTextColor(S_SUB, S_ROW);
-  tft.drawString((WiFi.SSID() + "  -  " + prefs.getString("town", "London")).c_str(), 24, 93, 2);
+  tft.drawString((WiFi.SSID() + "  -  " + prefs.getString("town", DEFAULT_TOWN)).c_str(), 24, 93, 2);
   tft.setTextDatum(MR_DATUM);
   tft.setTextColor(S_ACC, S_ROW);
   tft.drawString(">", 296, 86, 4);
@@ -437,7 +438,7 @@ void setup() {
   ts.setRotation(1);
 
   msg("Connecting WiFi...");
-  String town = prefs.getString("town", "London");
+  String town = prefs.getString("town", DEFAULT_TOWN);
   townParam.setValue(town.c_str(), 40);
   wm.addParameter(&townParam);
   wm.setSaveParamsCallback([] { prefs.putString("town", townParam.getValue()); });

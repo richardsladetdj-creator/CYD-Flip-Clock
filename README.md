@@ -34,7 +34,7 @@ pio run -e ota -t upload                            # after that, over WiFi (fli
 2. Join that network from your phone. If the portal page doesn't open on its own, go to http://192.168.4.1.
 3. Pick your network, enter the password and your **town for weather** (e.g. `Manchester`), then save. The clock reboots onto your WiFi.
 
-If nobody configures it within 5 minutes, it reboots and tries the saved WiFi again. To change networks, hold the screen for 1.5 s and tap **Wi-Fi & location**. The same page lets you change the weather town. Your current WiFi is kept unless you save a new one.
+If nobody configures it within 5 minutes, it reboots and tries the saved WiFi again. To change networks, hold the screen for 1.5 s and tap **Wi-Fi & location**. The same page lets you change the weather town (default: Bournemouth). Your current WiFi is kept unless you save a new one.
 
 ## Tuning knobs
 
